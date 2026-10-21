@@ -1,0 +1,180 @@
+
+Jira → Devin Automation Runbook
+Smart Hospital &amp; Patient Management System  ·  as of 16 Oct 2026
+Creating a Task in Jira project UST-HealthCare (KAN) automatically starts a Devin session that analyses the ticket, builds the microservice, runs tests and opens a pull request on Msocial123/UST-HealthCare-Project. This runbook explains how that works, every setting involved, and how to test and troubleshoot it.
+1. How it works
+One Jira event drives the whole run: the automation turns &quot;issue created in KAN&quot; into a Devin session, and the session ends with a pull request a human reviews.
+
+The highlighted box is the only part you configure per project; steps 1–2 and 5–6 depend on the one-time connections in section 3.
+2. Components
+Six pieces take part; Devin is the only one that writes code, and every PR still needs a human review.
+System
+Role in the flow
+Where it is configured
+Jira Cloud — muralik1403.atlassian.net, project UST-HealthCare (KAN)
+Source of work. A new Task fires the &quot;issue created&quot; event
+Jira → Apps → Devin (app installed, site linked)
+Devin Jira integration
+Receives Jira events; links the Jira site to Devin org msocial123
+Devin → Settings → Connections → Jira
+Devin automation &quot;KAN - Issue created -&gt; Smart Hospital&quot;
+Decides which events start a session, with what instructions, tools and limits
+Devin → Automations → the automation → Edit
+Devin playbook &quot;Smart Hospital — Analyze, Plan &amp; Build&quot;
+Standard workflow and guardrails for every session
+Devin → Settings → Connections → Jira → Playbooks
+GitHub — Msocial123/UST-HealthCare-Project (public)
+Devin clones, branches, pushes and opens the PR here
+Devin → Settings → Connections → GitHub
+Repo rules — AGENTS.md, Smart_Hospital_Repository_Rules.md
+Project instructions Devin reads before coding
+Repository root
+3. One-time setup checklist
+All of these must be true before a ticket can trigger a working session; every item is already done for KAN.
+Devin for Jira app installed in Jira, and the site linked to Devin (Jira → Apps → Devin shows connected).
+Devin → Settings → Connections → Jira shows Connected (admin account muralik1403).
+Atlassian account linked to your Devin user — profile → Settings → Connections → Atlassian shows &quot;Unlink user&quot;. Required because the Devin and Jira logins use different emails; without it the Issue created trigger cannot be saved.
+GitHub connected — Settings → Connections → GitHub shows @Msocial123 with UST-HealthCare-Project in its Repositories list.
+GitHub Automation scope = All connected repos — GitHub connection → General. The repo is public; with &quot;Private repos only&quot; sessions got git 403 and could not push.
+Playbook saved — listed under Active playbooks, macro !smart_hospital__analyze_plan__build.
+Session mode = Direct session creation ON (Jira connection page), so Devin builds instead of only posting a scoping comment.
+One automation only — the old label-based rule (label + status Done) was deleted so a ticket never starts two sessions.
+4. Automation options
+Open it at Devin → left sidebar Automations → KAN - Issue created -&gt; Smart Hospital → Edit (top right).
+Direct link: app.devin.ai/org/msocial123/automations/8a68be6f560c47cb8c20ddf3ff4a3cae/edit
+Setting
+Current value
+What it does / why
+Name
+KAN - Issue created -&gt; Smart Hospital
+Label only
+Active toggle
+On
+Off stops all new sessions; use it to pause
+Trigger
+Jira → Issue created, project equals UST-HealthCare
+Any new KAN issue starts a session. Other triggers: Issue updated, Label added, Status changed, Assigned, Comment created or edited
+Trigger response
+Reply → Comments on the issue
+Devin posts its final summary as a Jira comment
+Step before the agent runs
+Not used
+Optional pre-step
+Agent type
+Start new session
+One fresh session per ticket (alternative: Message existing session)
+Instructions
+!smart_hospital__analyze_plan__build + short brief
+The macro attaches the playbook; session shows &quot;Used playbook&quot;
+Agent mode
+Org default (Normal)
+Session behaviour mode
+Run as
+System User
+Identity the session acts as. Alternative: Creator (you) — try if Devin cannot comment on Jira
+MCPs → Jira
+Built-in, Specific projects: KAN
+Jira tools for KAN. Specific projects turns off the Atlassian MCP server; All projects left the session with no Jira tool
+Notifications
+None
+Optional alert when a run completes
+Advanced → Auto-start child sessions
+On
+Session may spawn helper sessions
+Advanced → Shared scratchpad
+On
+Memory shared across this automation&apos;s sessions
+Advanced → Network policy
+git-manager.devin.ai, pypi.org, files.pythonhosted.org
+Allowed domains; PyPI lets Devin install Python packages
+Advanced → Virtual environment
+Default (Ubuntu)
+OS of the session
+Advanced → Limits
+Not set
+Spend limit per session and rate limit; recommended before wider use
+
+Not in this editor: Session mode, Playbooks and older label-style automations live on Settings → Connections → Jira; Automation scope lives on the GitHub connection.
+5. Playbook
+Name: Smart Hospital — Analyze, Plan &amp; Build (default playbook).
+Macro: !smart_hospital__analyze_plan__build (double underscores). The older label !smart_hospital_analyze_plan_build does not match it.
+Attached by: the macro as the first word of the automation&apos;s Instructions (there is no Playbook field on this automation type).
+Workflow: read ticket → read README and AGENTS.md → analyse → plan → implement only the scope → tests → run and fix → review diff → report.
+Guardrails: Python 3.12+, FastAPI, Pydantic v2; synthetic data; no secrets; no Docker, Kubernetes, frontend or CI/CD unless asked; acceptance criteria are the checklist.
+6. Writing a Jira story that works
+A ticket triggers on creation, so it must be complete when you click Create. Use the per-service story documents that accompany this runbook.
+Project / type: UST-HealthCare (KAN), Task.
+Summary: &lt;Service name&gt; - Endpoints, Tests and Pull-Request Readiness.
+Labels and Assignee: leave empty — a playbook label or assigning Devin can start a second session.
+Description: Objective, Part 1 Analysis and Plan, Part 2 Build, Part 3 Endpoints, Part 4 Tests, Part 5 PR Readiness, Scope and Constraints, Acceptance Criteria.
+Do not create test or placeholder tickets in KAN — each one starts a paid session.
+7. Running a test
+A session starts within about a minute; a finished PR took 30–60 minutes for KAN-6 and KAN-7.
+When
+Where to look
+What you should see
+~1 min
+Devin → Automations → the automation → Events
+&quot;Created KAN-n: …&quot; row, Succeeded, with View session
+~1 min
+The session
+&quot;Build … KAN-n&quot; and &quot;Used playbook: Smart Hospital — Analyze, Plan &amp; Build&quot;
+5–10 min
+The Jira ticket
+Devin&apos;s plan comment (first run with the KAN-only Jira setting — to confirm)
+10–40 min
+The session
+Tasks ticking off: scaffold, models, tests, README, commit, push, PR
+30–60 min
+GitHub → Pull requests
+PR against main from devin/&lt;timestamp&gt;-&lt;service&gt;
+End
+The Jira ticket
+PR link and completion report comment
+
+Automation sessions run as System User and are hidden from Sessions when filtered to your own; open them from the automation&apos;s Events tab.
+8. Troubleshooting
+Symptom
+Cause
+Fix
+Creating a ticket started nothing
+Only automation was label-based and required status Done
+Created Issue created automation; deleted old rule
+Label rule never matched the playbook
+Single vs double underscores in the label
+Attach playbook by macro in Instructions
+&quot;Link your Jira user to use this trigger&quot;
+Atlassian account not linked (different emails)
+Profile → Settings → Connections → Atlassian → Link
+&quot;@Devin&quot; comment did nothing
+Typed as text, not a real mention
+Type @Dev and pick Devin from the list
+Session could not install packages
+PyPI domains not in network policy
+Added pypi.org and files.pythonhosted.org
+Ticket looked &quot;not triggered&quot; (KAN-7)
+It had triggered; no Jira tool and session hidden by the Sessions filter
+Check Events tab; Jira scope set to KAN
+git 403 on push; no PR
+GitHub Automation scope Private repos only; repo is public
+Set All connected repos; PRs #3 and #4 opened
+&quot;No Jira tool&quot;, jira_projects null
+Jira MCP on All projects
+Specific projects: KAN. Open: confirm on next ticket; fallback Run as → Creator
+Warning: pull commands failed
+Repo maintenance commands in Devin environment
+Open: review environment setup commands
+9. Webinar demo script
+Architecture (1 min) — eight-service diagram; Identity built, Patient and Provider built by Devin from Jira.
+Settings tour (3 min) — Jira connection page → Automations → Edit (trigger, macro, Jira tool, network) → GitHub Automation scope.
+Create the ticket live (2 min) — paste the prepared story; no label; Create.
+Show the trigger (1–2 min) — refresh Events until &quot;Created KAN-n&quot; appears; open View session; point out &quot;Used playbook&quot;.
+Watch Devin start (2 min) — reads AGENTS.md, builds a task list, posts the plan.
+Show a finished result (3 min) — PR #3 or #4: files, tests, README, completion report; Jira ticket with PR link.
+Close (1 min) — humans review and merge; guardrails from AGENTS.md and the playbook.
+10. Open items
+☐  Confirm Devin posts on Jira itself on the next ticket; fallback: Run as → Creator.
+☐  Review and merge PR #3 and PR #4; test results are Devin&apos;s own report.
+☐  Expect a small root README.md conflict when the second PR merges.
+☐  Fix the failing repository maintenance commands in Devin.
+☐  Consider spend and rate limits under Advanced → Limits.

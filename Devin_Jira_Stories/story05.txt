@@ -1,0 +1,116 @@
+
+Phase 5 — Scheduling &amp; Availability Service
+Jira story for the Devin automation  ·  Smart Hospital &amp; Patient Management System
+Status: Build after Facility (needs a facility timezone). Provider and Facility are referenced by UUID only.
+1. Jira fields
+Field
+Value
+Space / project
+UST-HealthCare (KAN)
+Work type
+Task
+Summary
+Scheduling &amp; Availability Service - Endpoints, Tests and Pull-Request Readiness
+Description
+Section 3 of this document (Objective to Acceptance Criteria)
+Labels
+Leave empty
+Assignee
+Leave empty
+Priority
+High (optional)
+2. How to create and verify
+Open the KAN list in Jira and click + Create.
+Choose project UST-HealthCare (KAN) and work type Task.
+Paste the summary: Scheduling &amp; Availability Service - Endpoints, Tests and Pull-Request Readiness.
+Copy everything in section 3 (from &quot;Objective&quot; to the end of &quot;Acceptance Criteria&quot;) into Description.
+Leave Labels and Assignee empty, then click Create.
+Within about 1 minute, open Devin → Automations → KAN - Issue created -&gt; Smart Hospital → Events and confirm &quot;Created KAN-n&quot; with View session.
+In the session, confirm &quot;Used playbook: Smart Hospital — Analyze, Plan &amp; Build&quot;.
+Expect Devin&apos;s plan comment on the ticket within 5–10 minutes, and a PR against main in 30–60 minutes.
+3. Story description (copy into Jira)
+Objective
+Build Phase 5 of the Smart Hospital &amp; Patient Management System: the Scheduling &amp; Availability Service (provider working hours, exceptions and advisory slot queries) as an independent FastAPI microservice under services/scheduling-service, following the conventions of services/identity-service. Deliver working endpoints, automated tests and a review-ready pull request.
+Part 1 — Analysis and Plan (before editing code)
+Read AGENTS.md, Smart_Hospital_Repository_Rules.md, the root README.md and services/identity-service (structure, config, JWT token contract, error format, tests).
+Post a concise plan as a comment on this Jira issue BEFORE writing code: assumptions, files to add, API and data model, dependencies, security implications and test plan.
+Part 2 — Build
+Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, PostgreSQL; same layered structure as identity-service (routers, schemas, models, services, repositories, config, tests).
+Own database and own Alembic migration history. Never read or write another service&apos;s tables.
+WorkingHours: id (UUID), provider_id (UUID ref), facility_id (UUID ref), weekday (0-6), start_local_time, end_local_time, slot_minutes (5-120), valid_from, valid_to (optional), is_active.
+AvailabilityException: id (UUID), provider_id, facility_id (optional), starts_at and ends_at (UTC), type (enum: LEAVE, HOLIDAY, BLOCKED, EXTRA_HOURS), reason code (no free-text clinical details).
+Working hours are stored in facility-local time; slot results are returned in UTC plus the facility timezone.
+Facility timezone comes from a small FacilityClient contract (GET /api/v1/facilities/{id}); mock it in tests. Do not query the Facility database.
+Slots are ADVISORY only. Appointment owns final booking correctness; this service never reserves or locks a slot.
+Configuration from environment variables; commit .env.example with placeholders only.
+Part 3 — Endpoints
+All under /api/v1 unless noted. GET /health requires no authentication.
+Method
+Path
+Allowed roles
+Notes
+POST
+/api/v1/providers/{provider_id}/working-hours
+ADMIN
+Add a weekly working-hours rule
+GET
+/api/v1/providers/{provider_id}/working-hours
+Any authenticated role
+List rules
+PATCH / DELETE
+/api/v1/working-hours/{id}
+ADMIN
+Update or deactivate a rule (soft delete)
+POST
+/api/v1/providers/{provider_id}/exceptions
+ADMIN, RECEPTIONIST
+Add leave / holiday / block / extra hours
+GET
+/api/v1/providers/{provider_id}/exceptions?from&amp;to
+Any authenticated role
+List exceptions in a range
+GET
+/api/v1/providers/{provider_id}/slots?facility_id&amp;date_from&amp;date_to
+RECEPTIONIST, DOCTOR, ADMIN
+Advisory free slots, max 14-day range
+
+Verify the Identity service JWT locally (signature, exp, iss, aud, allowed algorithms) per the documented token contract. Map roles to this service&apos;s permissions server-side. No runtime calls to Identity and no auth bypasses.
+Error format consistent with identity-service: 401 not_authenticated, 403 forbidden, 404 not_found, 409 conflict, 422 validation. OpenAPI docs enabled.
+Part 4 — Tests
+pytest + FastAPI TestClient with isolated test configuration; tokens minted in tests with a test-only secret.
+Cover: health; working-hours and exception create / list / update / deactivate.
+Overlapping working-hours rules for the same provider, weekday and facility (409).
+End before start, slot_minutes out of range, date range over 14 days (422).
+Slot generation: exceptions remove slots, EXTRA_HOURS adds slots, results correct across a daylight-saving change (use a DST timezone such as Europe/London in tests).
+Facility client mocked: facility not found (404) and Facility unavailable (503 with a clear error).
+Missing, invalid or expired token (401); wrong role (403).
+Tests must not require production databases or external services.
+Part 5 — Pull-Request Readiness
+Add services/scheduling-service/README.md (setup, env vars, migrations, run, test, API table) and update the root README services table (Scheduling &amp; Availability Service = Implemented).
+Run the full test suite and lint; report real results. Never claim tests passed if they were not run.
+Review the diff for secrets, debug code, unsafe logs, unrelated edits and missing migrations. Never log tokens or request bodies.
+Open a pull request against main with: summary, files changed, API/schema/migration changes, commands run with PASS/FAIL, security and service-boundary review, known limitations.
+Post the PR link and completion report as a comment on this Jira issue.
+Scope and Constraints
+Implement only the Scheduling &amp; Availability Service. Do not start any other microservice.
+Do not build booking or reservation logic; do not call the Appointment service.
+Do not modify other services.
+No frontend, API gateway, Docker/Kubernetes, cloud deployment or CI/CD.
+No diagnosis, treatment or clinical decision logic. Synthetic data only. No real credentials.
+Acceptance Criteria
+Plan comment posted on this issue before implementation starts.
+services/scheduling-service starts, GET /health returns 200, and all listed endpoints behave as specified.
+Slot query returns correct UTC slots for a facility timezone, including a DST boundary test.
+No database access to Provider or Facility; FacilityClient is mockable.
+JWT verified per the Identity token contract; role checks enforced server-side on every protected endpoint.
+Automated tests cover success, validation, not-found, conflict, 401 and 403 cases and pass.
+README.md, .env.example and root README update included; no secrets committed.
+Pull request opened against main and linked on this issue with a completion report.
+4. Reviewer checklist (after Devin opens the PR)
+☐  Plan comment appeared on the Jira issue before coding started.
+☐  Only services/scheduling-service and the root README changed.
+☐  No .env, secrets or real data committed; .env.example has placeholders only.
+☐  Alembic migration present and matches the models.
+☐  Test results in the PR are real (commands and PASS/FAIL listed); run them locally if possible.
+☐  Every protected endpoint has a role check and 401/403 tests.
+☐  No sensitive data in logs.
